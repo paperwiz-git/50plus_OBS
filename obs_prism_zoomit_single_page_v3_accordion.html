@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>유튜브·PRISM·OBS·ZoomIt 따라하기 가이드</title>
+<meta name="description" content="업로드 자료(1강, 2·3강, ZoomIt) 기반의 반응형 가이드. 채널 개설/브랜드계정/전화 인증, PRISM/Lens 설정, 장면·소스 구성, OBS 심화, ZoomIt 단축키 정리.">
+<style>
+  :root{
+    --bg:#FAFBFD; --card:#FFFFFF; --ink:#0E1522; --muted:#3A4657; --border:#CBD5E1;
+    --focus:#1F6BFF; --shadow:0 6px 18px rgba(16,24,40,.07);
+    --accent-yt:#B11116; --accent-prism:#2056D4; --accent-obs:#283179; --accent-zoom:#007A8C;
+    --ok-bg:#EAF7EF; --ok-ink:#0B4F2A;
+    --warn-bg:#FFE8B5; --warn-ink:#3B2C00; /* 대비 강화된 주의 박스 */
+    --danger-bg:#FDE6EC; --danger-ink:#7A0027;
+    --step-bg:#E9F0FF; --step-ink:#0B285C;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0C1220; --card:#0F172A; --ink:#E6ECF5; --muted:#B6C5DF; --border:#1E2742; --shadow:none; --focus:#5B9CFF;
+      --accent-yt:#FF8A8F; --accent-prism:#79A4FF; --accent-obs:#8DA0FF; --accent-zoom:#2AB7C4;
+      --ok-bg:#0E3623; --ok-ink:#BEF5D0;
+      --warn-bg:#3B2A00; --warn-ink:#FFE8B5;
+      --danger-bg:#3B0F1E; --danger-ink:#FFC6D6;
+      --step-bg:#0F1A33; --step-ink:#DCE7FF;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family: Apple SD Gothic Neo, Noto Sans KR, Malgun Gothic, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+    line-height:1.9;font-size:19px;-webkit-text-size-adjust:100%;
+  }
+  a{color:#0B3CF6;text-decoration:underline;text-underline-offset:3px}
+  a:hover{ text-decoration-thickness:2px }
+  a:focus{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+
+  header{background:linear-gradient(135deg,#0B3CF6,#70A7FF);color:#fff;padding:38px 0;box-shadow:var(--shadow);margin-bottom:6px}
+  header .wrap{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  header h1{margin:0;font-size:clamp(28px,3.4vw,40px)}
+  header p{margin:0;opacity:.95;max-width:60ch}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:.5rem;background:#fff;color:#0B2E6E;border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-weight:700;box-shadow:var(--shadow)}
+  .btn.small{padding:8px 10px}
+  .btn.primary{background:#0B3CF6;color:#fff;border-color:transparent}
+
+  main.container{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:300px 1fr;gap:16px}
+  @media (max-width:980px){ main.container{grid-template-columns:1fr} }
+
+  /* Accordion TOC */
+  .toc{position:sticky;top:12px;background:var(--card);border:2px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .accordion-item{border-bottom:2px solid var(--border)}
+  .accordion-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;background:#F8FAFF}
+  .accordion-title{margin:0;font-size:18px;color:#0B2E6E;font-weight:800}
+  .accordion-icon{transition:transform .25s ease}
+  .accordion-panel{max-height:0;overflow:hidden;transition:max-height .35s ease, padding .2s ease}
+  .accordion-panel.open{padding:8px 10px 10px}
+  .toc a{display:block;padding:10px 12px;border-radius:10px;color:var(--ink);text-decoration:none}
+  .toc a:hover{background:#EEF4FF}
+  @media (prefers-color-scheme: dark){ .toc a:hover{background:#16223B} }
+
+  /* Sections */
+  section{background:var(--card);border:2px solid var(--border);border-radius:18px;padding:22px 18px;margin-bottom:18px;box-shadow:var(--shadow)}
+  h2{margin:0 0 10px 0;line-height:1.35;color:#0B2E6E;font-size:clamp(22px,2.6vw,28px);letter-spacing:-.01em}
+  h3{margin:14px 0 8px 0;font-size:clamp(19px,2.2vw,22px)}
+
+  /* Prose clamp */
+  .prose{max-width:65ch}
+
+  /* Grid */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .col-12{grid-column:span 12}.col-6{grid-column:span 6}.col-4{grid-column:span 4}
+  @media (max-width:980px){ .col-6,.col-4{grid-column:span 12} }
+
+  .card{background:#FFFFFF;border:2px solid var(--border);border-radius:14px;padding:14px}
+  @media (prefers-color-scheme: dark){ .card{background:#0F172A} }
+
+  /* Steps */
+  .step{display:flex;gap:12px;align-items:flex-start;background:var(--step-bg);color:var(--step-ink);border:2px solid var(--border);border-left:6px solid #0B3CF6;padding:12px;border-radius:12px;margin:12px 0}
+  .n{flex:0 0 34px;height:34px;border-radius:50%;background:#0B3CF6;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+
+  /* Info blocks high contrast */
+  .note{font-size:17px;color:var(--muted)}
+  .tip,.warn,.ok,.danger{margin:12px 0;padding:14px;border-radius:12px;border:2px solid var(--border);font-weight:600}
+  .tip{background:#EDF5FF;border-left:6px solid #0B3CF6;color:#0B285C}
+  .warn{background:var(--warn-bg);color:var(--warn-ink);border-left:6px solid #B97800}
+  .ok{background:var(--ok-bg);color:var(--ok-ink);border-left:6px solid #1F8E4D}
+  .danger{background:var(--danger-bg);color:var(--danger-ink);border-left:6px solid #B3003F}
+
+  .kbd{display:inline-block;padding:2px 6px;border-radius:6px;background:#EEF4FF;color:#0B285C;border:1px solid var(--border);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px}
+  ul.num{padding-left:24px} ul.num li{margin:10px 0}
+
+  table.narrow{width:100%;border-collapse:collapse;margin-top:8px}
+  table.narrow th,table.narrow td{border:2px solid var(--border);padding:10px 12px;text-align:left;font-size:18px}
+  table.narrow thead th{background:#E8F0FF;color:#0B285C}
+  table.narrow tr:nth-child(even) td{background:#FAFCFF}
+  @media (prefers-color-scheme: dark){ table.narrow thead th{background:#16223B;color:#DCE7FF} table.narrow tr:nth-child(even) td{background:#0D1426} }
+
+  .img{border:2px dashed #9DB9FF;background:#F2F6FF;border-radius:12px;overflow:hidden;margin:12px 0}
+  .img img{width:100%;display:block}
+
+  /* Section color accents */
+  #youtube h2{color:var(--accent-yt)}
+  #prism h2{color:var(--accent-prism)}
+  #obs h2{color:var(--accent-obs)}
+  #zoomit h2{color:var(--accent-zoom)}
+
+  /* Back to top */
+  .top{position:fixed;right:12px;bottom:12px;z-index:50}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div>
+        <h1>유튜브·PRISM·OBS·ZoomIt 따라하기 가이드</h1>
+        <p>채널 개설·인증부터 장면·소스 구성, 녹화/방송, 단축키까지 단계별로 안내합니다.</p>
+      </div>
+      <div class="toolbar">
+        <a class="btn primary small" href="#flow">빠른 시작</a>
+        <a class="btn small" href="#youtube">채널·인증</a>
+        <a class="btn small" href="#prism">PRISM</a>
+        <a class="btn small" href="#obs">OBS</a>
+        <a class="btn small" href="#zoomit">ZoomIt</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 아코디언 목차 -->
+    <aside class="toc" aria-label="바로가기">
+      <div class="accordion-item" id="toc-accordion">
+        <div class="accordion-header" role="button" aria-expanded="true" aria-controls="toc-panel">
+          <h2 class="accordion-title">📖 목차</h2>
+          <svg class="accordion-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B2E6E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div id="toc-panel" class="accordion-panel open">
+          <nav class="links">
+            <a href="#intro">개요</a>
+            <a href="#flow">흐름</a>
+            <a href="#youtube">YouTube 채널·인증·썸네일</a>
+            <a href="#prism">PRISM Live / Lens</a>
+            <a href="#obs">OBS Studio</a>
+            <a href="#zoomit">ZoomIt 단축키</a>
+            <a href="#qa">문제 해결</a>
+          </nav>
+        </div>
+      </div>
+    </aside>
+
+    <div>
+      <!-- Intro -->
+      <section id="intro">
+        <h2>개요</h2>
+        <p class="prose">원문 강의 흐름을 따라 <strong>채널 개설·인증</strong> → <strong>PRISM/Lens 설치·기본 세팅</strong> → <strong>장면·소스 구성</strong> → <strong>녹화/방송</strong> → <strong>OBS 심화</strong> → <strong>ZoomIt 단축키</strong> 순서로 정리했습니다. 실습 시, PC 성능과 네트워크 상태에 맞춰 비트레이트/해상도를 조정하세요.</p>
+      </section>
+
+      <!-- Flow -->
+      <section id="flow">
+        <h2>흐름 요약</h2>
+        <div class="grid">
+          <div class="col-4 card"><h3>1) 채널 만들기·브랜드계정·인증</h3><p class="prose">브랜드계정 생성/관리자 추가, 전화번호 인증으로 15분 초과 업로드·맞춤 썸네일·모바일 라이브 활성화.</p></div>
+          <div class="col-4 card"><h3>2) PRISM Lens</h3><p class="prose">가상배경·뷰티 적용 후 카메라를 “PRISM Lens”로 선택. 필요 시 생략 가능.</p></div>
+          <div class="col-4 card"><h3>3) PRISM Live</h3><p class="prose">웹캠·마이크 확인 → 장면/소스 구성 → 녹화 또는 방송 시작.</p></div>
+          <div class="col-4 card"><h3>4) 장면 구성</h3><p class="prose">화면, 웹캠(PIP), 이미지/슬라이드쇼, 동영상, 텍스트, 오디오 등.</p></div>
+          <div class="col-4 card"><h3>5) OBS 심화</h3><p class="prose">하드웨어 인코더, MKV 녹화, 마이크 필터, 원형 웹캠 마스킹 등 고급 설정.</p></div>
+          <div class="col-4 card"><h3>6) ZoomIt</h3><p class="prose">확대/주석/타이머/라이브줌 단축키로 강의 전달력 강화.</p></div>
+        </div>
+      </section>
+
+      <!-- YouTube -->
+      <section id="youtube">
+        <h2>YouTube 채널 개설·브랜드계정·전화 인증·썸네일</h2>
+
+        <h3>채널 만들기와 브랜드계정</h3>
+        <ul class="num prose">
+          <li>구글 로그인 → 채널 만들기 → 채널명·핸들(@) 설정. 브랜드계정 추가 생성으로 사생활 노출을 줄이고 공동 운영 가능.</li>
+          <li>채널 맞춤설정에서 프로필·배너 적용(미리캔버스/배경제거 도구 활용 절차 포함).</li>
+        </ul>
+
+        <h3>전화번호 인증(필수 기능 활성화)</h3>
+        <div class="step"><div class="n">1</div><div>접속: youtube.com/verify 또는 Studio > 채널 상태 및 기능.</div></div>
+        <div class="step"><div class="n">2</div><div>완료 시 가능: 15분 초과 업로드, 맞춤 썸네일, 모바일 실시간 스트림, Content ID 항소. 일부 환경에서 24시간 지연 메시지 표기.</div></div>
+        <div class="warn">전화번호 1개로 연간 인증 가능한 채널 수는 제한됨.</div>
+
+        <h3>썸네일 규격과 배치 예시</h3>
+        <div class="grid">
+          <div class="col-6 card">
+            <h3>기본 규격</h3>
+            <ul class="num">
+              <li>1280×720(px), 16:9, 2MB 이하</li>
+              <li>포맷: JPG/PNG/GIF</li>
+              <li>글자는 가장자리에서 40px 안쪽에 배치</li>
+            </ul>
+          </div>
+          <div class="col-6 card">
+            <h3>디자인 팁</h3>
+            <ul class="num">
+              <li>짧고 큰 문장(6~12자), 강한 대비</li>
+              <li>단순한 배경 + 밝은 표정 사진</li>
+              <li>핵심 키워드를 앞쪽에 배치</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="img" aria-label="썸네일 배치 예시">
+          <img alt="썸네일 배치 그림" src="data:image/svg+xml;utf8,<?xml version='1.0' encoding='UTF-8'?>
+          <svg xmlns='http://www.w3.org/2000/svg' width='1280' height='720'>
+            <defs><linearGradient id='g' x1='0' x2='1'><stop offset='0' stop-color='%23CFE0FF'/><stop offset='1' stop-color='%23E7F1FF'/></linearGradient></defs>
+            <rect width='100%' height='100%' fill='url(%23g)'/>
+            <rect x='40' y='40' width='1200' height='640' rx='18' fill='none' stroke='%2399B6FF' stroke-dasharray='10,8' stroke-width='3'/>
+            <rect x='80' y='80' width='640' height='560' rx='12' fill='%23FFFFFF' stroke='%23AAC2FF'/>
+            <text x='100' y='120' font-family='Arial' font-size='26' fill='%230E1522'>사진 영역</text>
+            <rect x='760' y='340' width='420' height='120' rx='12' fill='%23FFFFFF' stroke='%23AAC2FF'/>
+            <text x='780' y='400' font-family='Arial' font-size='28' fill='%230E1522'>큰 제목</text>
+            <rect x='760' y='500' width='360' height='70' rx='12' fill='%23B11116'/>
+            <text x='780' y='545' font-family='Arial' font-size='28' fill='white'>보조 문구</text>
+          </svg>">
+        </div>
+      </section>
+
+      <!-- PRISM -->
+      <section id="prism">
+        <h2>PRISM Live / PRISM Lens</h2>
+
+        <div class="grid">
+          <div class="col-6 card">
+            <h3>시작 순서</h3>
+            <ol class="num">
+              <li>PRISM Lens 실행(선택) → 카메라·배경·뷰티 세팅.</li>
+              <li>PRISM Live 실행 → 비디오 캡처(웹캠)·마이크 입력 확인 → 믹서 레벨 확인(빨간선 넘지 않게).</li>
+              <li>장면모음 생성 → 화면·웹캠·이미지·음악 등 소스 추가 → 녹화 또는 방송 시작.</li>
+            </ol>
+          </div>
+
+          <div class="col-6 card">
+            <h3>권장 설정(방송/녹화)</h3>
+            <ul class="num">
+              <li>비디오 비트레이트: 4000~6000 Kbps, 인코더: 하드웨어(가능 시).</li>
+              <li>해상도: 캔버스/출력 1920×1080(동일 권장).</li>
+              <li>녹화형식: MKV(오류 종료 시 파일 보호), MP4는 오류 시 손실 가능.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>자주 쓰는 소스</h3>
+        <table class="narrow" aria-label="PRISM 소스 요약">
+          <thead><tr><th style="width:28%">소스</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>비디오 캡처</td><td>내장/외장 카메라, PRISM 모바일 앱으로 무선 웹캠 연동(동일 Wi-Fi, QR).</td></tr>
+            <tr><td>오디오 입력/출력</td><td>마이크·시스템 오디오. 레벨이 빨간선을 넘지 않게 조절.</td></tr>
+            <tr><td>화면/윈도우 캡처</td><td>모니터 전체·지정영역·특정 프로그램. 듀얼 모니터 활용 권장.</td></tr>
+            <tr><td>이미지/슬라이드쇼/동영상</td><td>JPG·PNG·GIF, 자동/수동 슬라이드, 로컬 동영상 추가.</td></tr>
+            <tr><td>웹/텍스트/비주얼라이저</td><td>웹페이지 오버레이, 텍스트 템플릿, 오디오 비주얼라이저.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="tip prose">모니터 2대면: 모니터1에 PRISM UI, 모니터2를 화면캡처로 쓰면 조작이 편합니다. 스마트폰 리모컨/스트림 덱으로 장면 전환을 간소화하세요.</div>
+      </section>
+
+      <!-- OBS -->
+      <section id="obs">
+        <h2>OBS Studio 핵심 심화</h2>
+        <div class="grid">
+          <div class="col-6 card">
+            <h3>권장값</h3>
+            <ul class="num">
+              <li>해상도/FPS: 1920×1080, 30/60 FPS</li>
+              <li>출력: 하드웨어 인코더, CBR, 키프레임 2초</li>
+              <li>오디오: 48kHz, 마이크 하나만 활성화</li>
+              <li>녹화: MKV 저장 후 필요 시 MP4 변환</li>
+            </ul>
+          </div>
+          <div class="col-6 card">
+            <h3>마이크 필터 순서</h3>
+            <ol class="num">
+              <li>익스팬더 → 컴프레서 → 게인 → 리미터(마지막).</li>
+            </ol>
+            <h3>원형 웹캠(PIP) 마스킹</h3>
+            <p class="prose">웹캠 소스 → 효과 필터 → 이미지 마스크/혼합(알파마스크) → 원형 알파 PNG 적용 → Alt+드래그로 크롭.</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>장면 배열 예시</h3>
+          <ul class="num">
+            <li>발표: 화면 캡처 + 우상단 PIP 웹캠</li>
+            <li>토크: 전체 웹캠 + 하단 텍스트</li>
+            <li>휴식·공지: 고지 이미지</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ZoomIt -->
+      <section id="zoomit">
+        <h2>ZoomIt 단축키/활용</h2>
+        <table class="narrow" aria-label="ZoomIt 단축키">
+          <thead><tr><th style="width:28%">기능</th><th style="width:32%">단축키</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>확대</td><td><span class="kbd">Ctrl</span> + <span class="kbd">1</span></td><td>마우스 이동으로 팬, 휠로 배율, <span class="kbd">Esc</span> 종료.</td></tr>
+            <tr><td>그리기</td><td><span class="kbd">Ctrl</span> + <span class="kbd">2</span></td><td>현재 화면을 정지하여 주석. 색상 <span class="kbd">R/G/B/Y</span>, 굵기 <span class="kbd">Ctrl+↑/↓</span>.</td></tr>
+            <tr><td>타이머</td><td><span class="kbd">Ctrl</span> + <span class="kbd">3</span></td><td>전체 화면 카운트다운, 화살표/휠로 시간 조절.</td></tr>
+            <tr><td>라이브 줌</td><td><span class="kbd">Ctrl</span> + <span class="kbd">4</span></td><td>확대한 상태에서 클릭과 입력 가능.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="img" aria-label="ZoomIt 예시">
+          <img alt="ZoomIt 예시" src="data:image/svg+xml;utf8,<?xml version='1.0' encoding='UTF-8'?>
+          <svg xmlns='http://www.w3.org/2000/svg' width='1100' height='300'>
+            <rect width='100%' height='100%' fill='%23F2F6FF'/>
+            <rect x='40' y='30' width='1020' height='240' rx='14' fill='%23FFFFFF' stroke='%239DB9FF' stroke-width='2'/>
+            <text x='70' y='70' font-family='Arial' font-size='20' fill='%230E1522'>ZoomIt 사용 예시</text>
+            <rect x='70' y='90' width='300' height='60' rx='10' fill='%23E6F0FF'/>
+            <text x='85' y='126' font-family='Arial' font-size='16' fill='%230E1522'>확대: Ctrl + 1</text>
+            <rect x='390' y='90' width='300' height='60' rx='10' fill='%23E6F0FF'/>
+            <text x='405' y='126' font-family='Arial' font-size='16' fill='%230E1522'>주석: Ctrl + 2</text>
+            <rect x='710' y='90' width='300' height='60' rx='10' fill='%23E6F0FF'/>
+            <text x='725' y='126' font-family='Arial' font-size='16' fill='%230E1522'>타이머: Ctrl + 3</text>
+            <rect x='70' y='170' width='620' height='60' rx='10' fill='%23FFF2CC'/>
+            <text x='85' y='206' font-family='Arial' font-size='16' fill='%230E1522'>팁: 색 R/G/B/Y, 굵기 Ctrl+↑/↓, 종료 Esc</text>
+          </svg>">
+        </div>
+      </section>
+
+      <!-- Troubleshooting -->
+      <section id="qa">
+        <h2>문제 해결</h2>
+        <div class="card">
+          <h3>카메라가 안 보일 때</h3>
+          <ul class="num">
+            <li>회의 앱 등이 카메라를 점유 중인지 확인</li>
+            <li>PRISM Lens를 먼저 실행 후 카메라 장치 선택</li>
+            <li>드라이버/권한 점검</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>오디오가 찢어지거나 너무 큼</h3>
+          <ul class="num">
+            <li>믹서 레벨이 빨간선을 넘지 않도록 입력 게인 조절</li>
+            <li>필요 시 익스팬더→컴프레서→게인→리미터 순으로 필터 적용</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>장면 전환이 번거로울 때</h3>
+          <ul class="num">
+            <li>두 대의 모니터로 조작 화면과 강의 화면 분리</li>
+            <li>스마트폰 리모컨 또는 스트림 덱 사용</li>
+          </ul>
+        </div>
+        <p class="note">본 페이지는 업로드된 원문을 가독성 있게 재배치한 요약 가이드입니다.</p>
+      </section>
+    </div>
+  </main>
+
+  <a class="top btn primary small" href="#top" aria-label="맨 위로">맨 위</a>
+
+  <script>
+    // Accordion logic for TOC
+    const aHeader = document.querySelector('.accordion-header');
+    const aIcon = document.querySelector('.accordion-icon');
+    const panel = document.getElementById('toc-panel');
+
+    function setPanel(open){
+      aHeader.setAttribute('aria-expanded', String(open));
+      panel.classList.toggle('open', open);
+      if(open){
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+        aIcon.style.transform = 'rotate(0deg)';
+      }else{
+        panel.style.maxHeight = 0;
+        aIcon.style.transform = 'rotate(-90deg)';
+      }
+    }
+    // init (collapse on small screens)
+    const mq = window.matchMedia('(max-width: 980px)');
+    function applyInitial(){ setPanel(!mq.matches ? true : false); }
+    applyInitial();
+    mq.addEventListener('change', applyInitial);
+
+    aHeader.addEventListener('click', ()=>{
+      const open = aHeader.getAttribute('aria-expanded') === 'true';
+      setPanel(!open);
+    });
+
+    // Recalc on resize for smooth animation
+    window.addEventListener('resize', ()=>{
+      if(panel.classList.contains('open')){
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+      }
+    });
+  </script>
+</body>
+</html>
