@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 채널 조회 웹앱</title>
+    <!-- 
+      YouTube 채널 조회 웹앱 v1.0
+      =================================
+      
+      [사용 방법]
+      1. Google Cloud Console(https://console.cloud.google.com/)에서 프로젝트 생성.
+      2. "API 및 서비스" > "라이브러리"에서 "YouTube Data API v3"를 검색하여 "사용 설정".
+      3. "API 및 서비스" > "사용자 인증 정보"에서 "API 키" 생성.
+      4. 생성된 API 키를 복사하여 아래 "API Key" 입력칸에 붙여넣기.
+      5. (선택) 보안을 위해, 비밀번호를 입력하고 "키 저장(암호화)" 버튼을 누르면
+         API 키가 브라우저(localStorage)에 암호화되어 저장됩니다.
+      6. 검색어를 입력하고 엔터 또는 검색 버튼(우측에 추가한다면)을 누르거나,
+         필터(기간, 정렬, 개수)를 변경하면 검색이 실행됩니다.
+
+      [중요: file:// 프로토콜 경고]
+      이 HTML 파일을 로컬에서 'file://' 프로토콜로 직접 열면, 
+      브라우저 보안 정책(CORS, Referrer Policy)으로 인해 YouTube API 요청이 
+      실패할 수 있습니다. (API 키 요청 시 'Referer' 헤더가 전송되지 않음)
+
+      [해결 방법]
+      - (권장) Live Server (VSCode 확장 프로그램)와 같은 로컬 웹 서버를 사용하세요.
+      - 또는, API 키 설정에서 HTTP 리퍼러 제한을 "없음"으로 설정하세요. 
+        (보안상 권장되지 않음)
+
+      [최소 수동 테스트 시나리오]
+      1. 유효한 API 키를 입력.
+      2. 검색어 "시니어 건강", 기간 "3개월", 정렬 "date", 개수 "20" 선택.
+      3. 영상 목록이 카드 형태로 정상 표시되는지 확인.
+      4. "보기: 테이블" 버튼 클릭 시 테이블 뷰로 전환되는지 확인.
+      5. "다음" 버튼 클릭 시 다음 페이지 결과가 로드되는지 확인.
+      6. "CSV" / "JSON" 내보내기 버튼이 정상 동작하는지 확인.
+      7. "API 테스트" 버튼 클릭 시 "API 키가 유효합니다." 토스트가 뜨는지 확인.
+      8. API 키를 틀리게 입력하고 검색 시, 에러 토스트가 뜨는지 확인.
+    -->
+    <style>
+        /* --- 변수 및 기본 설정 --- */
+        :root {
+            --color-red: #E53935;     /* 검색/실행/에러 */
+            --color-blue: #1E88E5;    /* 보조/옵션/정보 */
+            --color-green: #43A047;   /* 리셋/토글/성공/내보내기 */
+            --color-text: #111;
+            --color-bg: #ffffff;
+            --color-border: #E5E7EB;
+            --color-bg-alt: #f9fafb;
+            --shadow-light: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        /* --- 기본 스타일 리셋 --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            padding-top: 180px; /* 상단 고정 바 높이만큼 패딩 (유동적으로 조절됨) */
+        }
+
+        /* --- 접근성 --- */
+        *:focus-visible {
+            outline: 2px solid var(--color-blue);
+            outline-offset: 2px;
+            border-radius: var(--radius-md);
+        }
+
+        /* --- 유틸리티 클래스 --- */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- 버튼 스타일 --- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .btn:hover, .btn:focus-visible {
+            border-color: #9ca3af;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-danger { background-color: var(--color-red); color: white; border-color: var(--color-red); }
+        .btn-danger:hover { background-color: #d32f2f; border-color: #d32f2f; }
+        
+        .btn-primary { background-color: var(--color-blue); color: white; border-color: var(--color-blue); }
+        .btn-primary:hover { background-color: #1976D2; border-color: #1976D2; }
+        
+        .btn-success { background-color: var(--color-green); color: white; border-color: var(--color-green); }
+        .btn-success:hover { background-color: #388E3C; border-color: #388E3C; }
+
+        /* --- 입력칸 스타일 --- */
+        .input-field, .select-field {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            background-color: white;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .input-field:focus, .select-field:focus {
+            border-color: var(--color-blue);
+            box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+            outline: none;
+        }
+
+        /* --- 상단 검색 바 --- */
+        .search-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--color-bg);
+            border-bottom: 1px solid var(--color-border);
+            padding: 1rem;
+            box-shadow: var(--shadow-light);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .search-bar-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .input-group {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        #api-key-input {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            flex-grow: 1;
+            min-width: 150px;
+        }
+        #api-key-toggle {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-left: 0;
+        }
+
+        #search-query {
+            flex-grow: 1;
+            font-size: 1rem;
+            min-width: 200px;
+        }
+        
+        .crypto-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        #crypto-password {
+            width: 120px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .chip-btn {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.6rem;
+        }
+        .chip-btn.active {
+            background-color: var(--color-blue);
+            color: white;
+            border-color: var(--color-blue);
+        }
+
+        /* --- 경고 배너 --- */
+        .warning-banner {
+            position: fixed;
+            top: 0; /* JS로 search-bar 높이만큼 동적 설정됨 */
+            left: 0;
+            right: 0;
+            background-color: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #b45309;
+            padding: 0.75rem 1rem;
+            z-index: 999;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+        #close-banner-btn {
+            background: none;
+            border: none;
+            color: #b45309;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        /* --- 로더 --- */
+        .loader {
+            display: none; /* 기본 숨김 */
+            margin: 4rem auto;
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid var(--color-blue);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- 메인 컨텐츠 영역 --- */
+        .content-area {
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* --- 결과 없음 메시지 --- */
+        #no-results-message {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #6b7280;
+            padding: 3rem 1rem;
+            border: 2px dashed var(--color-border);
+            border-radius: var(--radius-lg);
+        }
+
+        /* --- 카드 뷰 (Grid) --- */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .video-card {
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-light);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow 0.2s ease;
+        }
+        .video-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-thumbnail {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 비율 */
+            background-color: var(--color-bg-alt);
+        }
+        .card-thumbnail img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .card-duration {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.15rem 0.4rem;
+            border-radius: var(--radius-md);
+        }
+
+        .card-content {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text);
+            text-decoration: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.5rem;
+        }
+        .card-title:hover {
+            color: var(--color-blue);
+        }
+
+        .card-meta, .card-stats {
+            font-size: 0.875rem;
+            color: #4b5563;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .card-meta span, .card-stats span {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .card-tags {
+            margin-bottom: 0.75rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+        .tag-chip {
+            font-size: 0.75rem;
+            background-color: var(--color-bg-alt);
+            border: 1px solid var(--color-border);
+            padding: 0.15rem 0.5rem;
+            border-radius: 99px;
+            white-space: nowrap;
+        }
+
+        .card-description {
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .description-toggle {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--color-blue);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem 0;
+        }
+
+        /* --- 테이블 뷰 (Table) --- */
+        .results-table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            min-width: 1200px; /* 가로 스크롤 생성 */
+        }
+        .results-table th, .results-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--color-border);
+            text-align: left;
+            vertical-align: top;
+        }
+        .results-table th {
+            background-color: var(--color-bg-alt);
+            font-weight: 600;
+        }
+        .results-table tr:last-child td {
+            border-bottom: 0;
+        }
+        .results-table tr:hover {
+            background-color: #fcfcfc;
+        }
+        .table-thumbnail {
+            width: 120px;
+            height: 67.5px;
+            object-fit: cover;
+            border-radius: var(--radius-md);
+        }
+        .table-title {
+            font-weight: 600;
+            color: var(--color-text);
+            text-decoration: none;
+        }
+        .table-title:hover {
+            color: var(--color-blue);
+        }
+        .table-description {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .table-tags {
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --- 페이지네이션 --- */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .pagination .btn {
+            min-width: 100px;
+        }
+
+        /* --- 토스트 메시지 --- */
+        .toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .toast {
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius-md);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+        }
+        .toast.success {
+            background-color: var(--color-green);
+            color: white;
+        }
+        .toast.error {
+            background-color: var(--color-red);
+            color: white;
+        }
+        .toast.info {
+            background-color: var(--color-blue);
+            color: white;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+
+        /* --- 반응형 레이아웃 --- */
+        @media (max-width: 1024px) {
+            body { padding-top: 220px; } /* 바 높이 증가 */
+        }
+        @media (max-width: 768px) {
+            body { padding-top: 260px; } /* 바 높이 증가 */
+            .content-area { padding: 1rem; }
+            .results-grid {
+                grid-template-columns: 1fr; /* 모바일에선 1열 */
+                gap: 1rem;
+            }
+            .search-bar {
+                padding: 0.75rem;
+            }
+            .search-bar-row {
+                gap: 0.5rem;
+            }
+            .btn {
+                padding: 0.5rem 0.6rem;
+                font-size: 0.8rem;
+            }
+            .input-field, .select-field {
+                font-size: 0.8rem;
+                padding: 0.5rem 0.6rem;
+            }
+            .crypto-group {
+                flex-wrap: wrap;
+            }
+            #crypto-password {
+                width: 100px;
+            }
+        }
+        @media (max-width: 480px) {
+             body { padding-top: 360px; } /* 바 높이 증가 */
+             .filter-group, .action-group {
+                width: 100%;
+                justify-content: space-between;
+             }
+             .select-field {
+                 flex-grow: 1;
+             }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- 상단 고정 검색 바 -->
+    <header class="search-bar" id="search-bar">
+        <!-- 1행: API 키 및 검색어 -->
+        <div class="search-bar-row">
+            <div class="input-group">
+                <label for="api-key-input" class="hidden">API Key</label>
+                <input type="password" id="api-key-input" class="input-field" placeholder="YouTube API Key 입력">
+                <button id="api-key-toggle" class="btn" aria-label="API 키 표시/숨김">👁️</button>
+            </div>
+            
+            <div class="crypto-group">
+                <label for="crypto-password" class="hidden">암호화 비밀번호</label>
+                <input type="password" id="crypto-password" class="input-field" placeholder="키 암호">
+                <button id="save-key-btn" class="btn btn-primary" title="현재 API 키를 입력한 비밀번호로 암호화하여 저장합니다.">키 저장</button>
+                <button id="load-key-btn" class="btn btn-success" title="입력한 비밀번호로 저장된 API 키를 복호화하여 불러옵니다.">키 불러오기</button>
+            </div>
+        </div>
+        
+        <div class="search-bar-row">
+             <label for="search-query" class="hidden">검색어</label>
+             <input type="search" id="search-query" class="input-field" placeholder="검색어 입력 후 Enter (예: 시니어 건강)">
+        </div>
+
+        <!-- 2행: 필터 -->
+        <div class="search-bar-row filter-group">
+            <div>
+                <span style="font-size: 0.875rem; margin-right: 0.5rem;">기간:</span>
+                <button class="btn chip-btn" data-months="1">1개월</button>
+                <button class="btn chip-btn" data-months="2">2개월</button>
+                <button class="btn chip-btn" data-months="3">3개월</button>
+                <button class="btn chip-btn" data-months="6">6개월</button>
+                <button class="btn chip-btn" data-months="9">9개월</button>
+                <button class="btn chip-btn" data-months="12">12개월</button>
+            </div>
+            <label for="sort-order" class="hidden">정렬</label>
+            <select id="sort-order" class="select-field">
+                <option value="relevance">관련성</option>
+                <option value="date">최신순</option>
+                <option value="viewCount">조회수순</option>
+                <option value="rating">평점순</option>
+            </select>
+            <label for="result-count" class="hidden">개수</label>
+            <select id="result-count" class="select-field">
+                <option value="10">10개</option>
+                <option value="20">20개</option>
+                <option value="30">30개</option>
+                <option value="50">50개</option>
+            </select>
+        </div>
+
+        <!-- 3행: 액션 버튼 -->
+        <div class="search-bar-row action-group">
+            <button id="view-toggle-btn" class="btn btn-success">보기: 테이블</button>
+            <button id="reset-btn" class="btn btn-success">필터 리셋</button>
+            <button id="export-csv-btn" class="btn btn-success">Export CSV</button>
+            <button id="copy-json-btn" class="btn btn-success">Copy JSON</button>
+            <button id="api-test-btn" class="btn btn-danger">API 테스트</button>
+        </div>
+    </header>
+
+    <!-- 경고 배너 -->
+    <div class="warning-banner" id="warning-banner">
+        <span>⚠️ <strong>주의:</strong> API 키가 브라우저에 노출될 수 있습니다. 이 페이지를 공개적으로 공유하지 마세요.<br>
+              로컬에서 `file://`로 실행 시 API 요청이 실패할 수 있습니다 (로컬 서버 권장).</span>
+        <button id="close-banner-btn" aria-label="배너 닫기">&times;</button>
+    </div>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="content-area">
+        <!-- 로더 -->
+        <div class="loader" id="loader"></div>
+        
+        <!-- 결과 컨테이너 -->
+        <div id="results-container">
+            <!-- 동적 컨텐츠 (카드 또는 테이블) -->
+        </div>
+
+        <!-- 결과 없음 메시지 -->
+        <div id="no-results-message" class="hidden">
+            <p>검색 결과가 없습니다.<br>검색어를 변경하거나 기간 필터를 확장해 보세요.</p>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <nav class="pagination" id="pagination-controls">
+            <button id="prev-page-btn" class="btn" disabled>&larr; 이전</button>
+            <button id="next-page-btn" class="btn" disabled>다음 &rarr;</button>
+        </nav>
+    </main>
+
+    <!-- 토스트 컨테이너 -->
+    <div class="toast-container" id="toast-container"></div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- DOM 요소 ---
+            const dom = {
+                searchBar: document.getElementById('search-bar'),
+                apiKeyInput: document.getElementById('api-key-input'),
+                apiKeyToggle: document.getElementById('api-key-toggle'),
+                cryptoPasswordInput: document.getElementById('crypto-password'),
+                saveKeyBtn: document.getElementById('save-key-btn'),
+                loadKeyBtn: document.getElementById('load-key-btn'),
+                searchQueryInput: document.getElementById('search-query'),
+                periodChipContainer: document.querySelector('.filter-group div'),
+                sortOrderSelect: document.getElementById('sort-order'),
+                resultCountSelect: document.getElementById('result-count'),
+                viewToggleBtn: document.getElementById('view-toggle-btn'),
+                resetBtn: document.getElementById('reset-btn'),
+                exportCsvBtn: document.getElementById('export-csv-btn'),
+                copyJsonBtn: document.getElementById('copy-json-btn'),
+                apiTestBtn: document.getElementById('api-test-btn'),
+                warningBanner: document.getElementById('warning-banner'),
+                closeBannerBtn: document.getElementById('close-banner-btn'),
+                loader: document.getElementById('loader'),
+                resultsContainer: document.getElementById('results-container'),
+                noResultsMessage: document.getElementById('no-results-message'),
+                paginationControls: document.getElementById('pagination-controls'),
+                prevPageBtn: document.getElementById('prev-page-btn'),
+                nextPageBtn: document.getElementById('next-page-btn'),
+                toastContainer: document.getElementById('toast-container'),
+            };
+
+            // --- 상태 변수 ---
+            const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+            let apiKey = '';
+            let currentView = 'grid'; // 'grid' or 'table'
+            let currentResults = []; // 현재 로드된 비디오 데이터
+            let pageTokens = { next: null, prev: [] }; // 페이지네이션 토큰 스택
+            let searchCache = new Map(); // 간단한 메모리 캐시
+            let searchTimeout;
+
+            // --- 유틸리티 함수 ---
+
+            /**
+             * 토스트 메시지 표시
+             * @param {string} message - 표시할 메시지
+             * @param {'success' | 'error' | 'info'} type - 토스트 타입
+             */
+            function showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                dom.toastContainer.appendChild(toast);
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
+
+            /**
+             * 로더 표시/숨김
+             * @param {boolean} show - 표시 여부
+             */
+            function showLoader(show) {
+                dom.loader.style.display = show ? 'block' : 'none';
+            }
+
+            /**
+             * "결과 없음" 메시지 표시/숨김
+             * @param {boolean} show - 표시 여부
+             */
+            function showNoResults(show) {
+                dom.noResultsMessage.classList.toggle('hidden', !show);
+            }
+
+            /**
+             * 디바운스 함수
+             * @param {Function} func - 실행할 함수
+             * @param {number} delay - 지연 시간 (ms)
+             */
+            function debounce(func, delay) {
+                return function(...args) {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => func.apply(this, args), delay);
+                };
+            }
+
+            /**
+             * ISO 8601 기간(PT#H#M#S) 파싱
+             * @param {string} durationString - 예: "PT1H30M15S"
+             * @returns {string} - "h:mm:ss" 또는 "mm:ss"
+             */
+            function formatDuration(durationString) {
+                if (!durationString) return '00:00';
+                const match = durationString.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                if (!match) return '00:00';
+
+                const hours = parseInt(match[1] || 0, 10);
+                const minutes = parseInt(match[2] || 0, 10);
+                const seconds = parseInt(match[3] || 0, 10);
+
+                const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                const h = Math.floor(totalSeconds / 3600);
+                const m = Math.floor((totalSeconds % 3600) / 60);
+                const s = totalSeconds % 60;
+
+                const pad = (num) => String(num).padStart(2, '0');
+                
+                if (h > 0) {
+                    return `${h}:${pad(m)}:${pad(s)}`;
+                } else {
+                    return `${pad(m)}:${pad(s)}`;
+                }
+            }
+
+            /**
+             * 날짜 포맷 (Asia/Seoul)
+             * @param {string} isoString - UTC ISO 날짜 문자열
+             * @returns {string} - "YYYY. MM. DD. 오전/오후 h:mm"
+             */
+            function formatDate(isoString) {
+                try {
+                    return new Date(isoString).toLocaleString('ko-KR', {
+                        timeZone: 'Asia/Seoul',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                } catch (e) {
+                    return 'N/A';
+                }
+            }
+
+            /**
+             * 숫자 콤마 포맷
+             * @param {string|number} num - 숫자
+             * @returns {string} - "1,234,567"
+             */
+            function formatNumber(num) {
+                try {
+                    return parseInt(num, 10).toLocaleString('ko-KR');
+                } catch (e) {
+                    return '0';
+                }
+            }
+
+            /**
+             * N개월 전 날짜 계산 (UTC ISO 문자열 반환)
+             * @param {number | null} months - 개월 수
+             * @returns {string | null} - UTC ISO 문자열
+             */
+            function calculatePublishedAfter(months) {
+                if (months === null) return null;
+                const date = new Date();
+                date.setMonth(date.getMonth() - months);
+                date.setHours(0, 0, 0, 0); // 현지 시간 기준 00:00:00
+                return date.toISOString(); // UTC로 변환하여 반환
+            }
+
+            /**
+             * HTML 특수문자 이스케이프
+             * @param {string} str 
+             */
+            function escapeHTML(str) {
+                if (!str) return '';
+                return str.replace(/[&<>"']/g, function(m) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    }[m];
+                });
+            }
+
+            /**
+             * CSV 내용 이스케이프
+             * @param {string} str 
+             */
+            function escapeCSV(str) {
+                if (str === null || str === undefined) return '';
+                str = String(str);
+                // 필드에 콤마, 따옴표, 줄바꿈이 포함되면 따옴표로 감쌈
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    // 따옴표는 두 개로 치환
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            }
+
+
+            // --- localStorage 설정 저장/로드 ---
+
+            function saveSettings() {
+                const periodBtn = dom.periodChipContainer.querySelector('.active');
+                const settings = {
+                    query: dom.searchQueryInput.value,
+                    period: periodBtn ? periodBtn.dataset.months : null,
+                    sort: dom.sortOrderSelect.value,
+                    count: dom.resultCountSelect.value,
+                    view: currentView
+                };
+                localStorage.setItem('youtubeSearchSettings', JSON.stringify(settings));
+            }
+
+            function loadSettings() {
+                const settings = JSON.parse(localStorage.getItem('youtubeSearchSettings') || '{}');
+                
+                dom.searchQueryInput.value = settings.query || '';
+                dom.sortOrderSelect.value = settings.sort || 'relevance';
+                dom.resultCountSelect.value = settings.count || '10';
+                
+                if (settings.period) {
+                    const periodBtn = dom.periodChipContainer.querySelector(`[data-months="${settings.period}"]`);
+                    if (periodBtn) periodBtn.classList.add('active');
+                }
+                
+                if (settings.view === 'table') {
+                    toggleView(true); // 뷰 전환
+                }
+
+                // API 키는 암호화된 저장소에서 별도 로드 시도
+                if (localStorage.getItem('youtubeApiKey_iv')) {
+                    showToast('저장된 암호화 키가 있습니다. 비밀번호로 "키 불러오기"를 하세요.', 'info');
+                }
+            }
+
+            /**
+             * 필터 리셋
+             */
+            function resetSettings() {
+                localStorage.removeItem('youtubeSearchSettings');
+                dom.searchQueryInput.value = '';
+                dom.sortOrderSelect.value = 'relevance';
+                dom.resultCountSelect.value = '10';
+                dom.periodChipContainer.querySelectorAll('.active').forEach(b => b.classList.remove('active'));
+                
+                // 검색 초기화
+                currentResults = [];
+                pageTokens = { next: null, prev: [] };
+                searchCache.clear();
+                renderResults([]);
+                updatePagination(null);
+                
+                showToast('필터가 초기화되었습니다.', 'success');
+            }
+
+
+            // --- API 키 암호화 (WebCrypto) ---
+            /*
+             * 참고: 이 암호화는 localStorage에 저장된 키를 "at-rest" 상태에서 보호하기 
+             * 위함입니다. 사용자가 비밀번호를 입력해야만 키가 메모리로 복호화됩니다.
+             *
+             * 하지만 이는 네트워크 전송 시 키 노출이나, 메모리에 로드된 후의 
+             * 키 노출을 방지하지는 못합니다. (근본적인 브라우저 API 키 사용의 한계)
+             */
+            
+            // 헬퍼: Text <-> ArrayBuffer
+            const enc = new TextEncoder();
+            const dec = new TextDecoder();
+            
+            // 헬퍼: ArrayBuffer -> Base64
+            function ab2b64(buffer) {
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary);
+            }
+            
+            // 헬퍼: Base64 -> ArrayBuffer
+            function b642ab(base64) {
+                const binary_string = window.atob(base64);
+                const len = binary_string.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binary_string.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+
+            /**
+             * PBKDF2로부터 암호화 키 도출
+             */
+            async function getKey(password, salt) {
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    enc.encode(password),
+                    "PBKDF2",
+                    false,
+                    ["deriveKey"]
+                );
+                return crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 150000, // 최소 10만 권장
+                        hash: "SHA-256"
+                    },
+                    keyMaterial,
+                    { name: "AES-GCM", length: 256 },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+            }
+
+            /**
+             * API 키 암호화 및 저장
+             */
+            async function encryptAndStoreKey() {
+                const password = dom.cryptoPasswordInput.value;
+                const keyToStore = dom.apiKeyInput.value;
+
+                if (!password || !keyToStore) {
+                    showToast('API 키와 암호화 비밀번호를 모두 입력하세요.', 'error');
+                    return;
+                }
+
+                try {
+                    const salt = crypto.getRandomValues(new Uint8Array(16));
+                    const iv = crypto.getRandomValues(new Uint8Array(12)); // AES-GCM 권장 IV
+                    const key = await getKey(password, salt);
+                    
+                    const encryptedData = await crypto.subtle.encrypt(
+                        { name: "AES-GCM", iv: iv },
+                        key,
+                        enc.encode(keyToStore)
+                    );
+
+                    // {salt, iv, data} Base64로 저장
+                    localStorage.setItem('youtubeApiKey_salt', ab2b64(salt));
+                    localStorage.setItem('youtubeApiKey_iv', ab2b64(iv));
+                    localStorage.setItem('youtubeApiKey_data', ab2b64(encryptedData));
+
+                    dom.cryptoPasswordInput.value = ''; // 비밀번호 필드 비우기
+                    showToast('API 키를 성공적으로 암호화하여 저장했습니다.', 'success');
+
+                } catch (e) {
+                    console.error("키 저장 실패:", e);
+                    showToast(`키 저장 실패: ${e.message}`, 'error');
+                }
+            }
+
+            /**
+             * API 키 복호화 및 로드
+             */
+            async function loadAndDecryptKey() {
+                const password = dom.cryptoPasswordInput.value;
+                if (!password) {
+                    showToast('암호화 비밀번호를 입력하세요.', 'error');
+                    return;
+                }
+
+                const salt_b64 = localStorage.getItem('youtubeApiKey_salt');
+                const iv_b64 = localStorage.getItem('youtubeApiKey_iv');
+                const data_b64 = localStorage.getItem('youtubeApiKey_data');
+
+                if (!salt_b64 || !iv_b64 || !data_b64) {
+                    showToast('저장된 암호화 키가 없습니다.', 'error');
+                    return;
+                }
+
+                try {
+                    const salt = b642ab(salt_b64);
+                    const iv = b642ab(iv_b64);
+                    const encryptedData = b642ab(data_b64);
+
+                    const key = await getKey(password, salt);
+                    
+                    const decryptedData = await crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: iv },
+                        key,
+                        encryptedData
+                    );
+
+                    const decryptedKey = dec.decode(decryptedData);
+                    dom.apiKeyInput.value = decryptedKey;
+                    apiKey = decryptedKey; // 전역 변수에도 설정
+                    dom.cryptoPasswordInput.value = ''; // 비밀번호 필드 비우기
+                    showToast('API 키를 성공적으로 불러왔습니다.', 'success');
+
+                } catch (e) {
+                    console.error("키 불러오기 실패:", e);
+                    // 복호화 실패는 대부분 비밀번호 오류
+                    showToast('키 불러오기 실패: 비밀번호가 틀렸거나 데이터가 손상되었습니다.', 'error');
+                }
+            }
+
+
+            // --- API 호출 로직 ---
+
+            /**
+             * API 에러 핸들러
+             * @param {Error} error 
+             */
+            function handleApiError(error, response = null) {
+                console.error("API Error:", error, response);
+                showLoader(false);
+                
+                let message = `API 요청 실패: ${error.message}`;
+
+                if (window.location.protocol === 'file:') {
+                    message += '\n[file://] 프로토콜 감지. 로컬 서버 사용을 권장합니다.';
+                }
+
+                if (response && response.error) {
+                    const apiError = response.error;
+                    message = `[${apiError.code}] ${apiError.message}\n`;
+                    const reason = apiError.errors?.[0]?.reason;
+                    if (reason === 'keyInvalid') {
+                        message += 'API 키가 잘못되었습니다. 확인 후 다시 시도하세요.';
+                    } else if (reason === 'quotaExceeded') {
+                        message += 'API 할당량(쿼터)을 초과했습니다.';
+                    } else if (reason === 'forbidden') {
+                        message += 'API 접근이 거부되었습니다 (IP/리퍼러 제한 등).';
+                    }
+                }
+
+                showToast(message.replace(/\n/g, ' '), 'error');
+            }
+
+            /**
+             * 메인 검색 함수
+             * @param {string | null} pageToken - 페이지 토큰 (다음/이전)
+             */
+            async function handleSearch(pageToken = null) {
+                apiKey = dom.apiKeyInput.value;
+                if (!apiKey) {
+                    showToast('YouTube API Key를 입력하세요.', 'error');
+                    return;
+                }
+
+                // pageToken이 null이 아니면(페이지 이동), 새 검색이 아님
+                if (pageToken === null) {
+                    pageTokens = { next: null, prev: [] }; // 새 검색 시 토큰 리셋
+                }
+
+                const query = dom.searchQueryInput.value.trim();
+                const sortOrder = dom.sortOrderSelect.value;
+                const maxResults = dom.resultCountSelect.value;
+                const periodBtn = dom.periodChipContainer.querySelector('.active');
+                const periodMonths = periodBtn ? parseInt(periodBtn.dataset.months, 10) : null;
+                const publishedAfter = calculatePublishedAfter(periodMonths);
+
+                if (!query) {
+                    showToast('검색어를 입력하세요.', 'info');
+                    return;
+                }
+
+                // 1. search.list API (영상 ID 목록 가져오기)
+                const searchParams = new URLSearchParams({
+                    part: 'snippet',
+                    type: 'video',
+                    q: query,
+                    order: sortOrder,
+                    maxResults: maxResults,
+                    key: apiKey,
+                });
+
+                if (publishedAfter) {
+                    searchParams.set('publishedAfter', publishedAfter);
+                }
+                if (pageToken) {
+                    searchParams.set('pageToken', pageToken);
+                }
+                
+                const searchUrl = `${YOUTUBE_API_BASE}/search?${searchParams.toString()}`;
+
+                // 캐시 확인 (페이지 이동 시에는 캐시 사용 안 함)
+                if (!pageToken && searchCache.has(searchUrl)) {
+                    const cachedData = searchCache.get(searchUrl);
+                    console.log("Using cached search data...");
+                    processVideoIds(cachedData, pageToken);
+                    return;
+                }
+
+                showLoader(true);
+                showNoResults(false);
+                dom.resultsContainer.innerHTML = ''; // 이전 결과 비우기
+
+                try {
+                    const response = await fetch(searchUrl);
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error?.message || response.statusText);
+                    }
+                    
+                    if (!pageToken) {
+                        searchCache.set(searchUrl, data); // 새 검색 캐시
+                    }
+                    
+                    await processVideoIds(data, pageToken);
+
+                } catch (error) {
+                    // response.json()이 실패할 경우를 대비해 data 객체가 없을 수 있음
+                    handleApiError(error, error.response?.data);
+                } finally {
+                    showLoader(false);
+                    saveSettings(); // 검색 성공 시 설정 저장
+                }
+            }
+
+            /**
+             * 1단계(search) 완료 후 2단계(videos) 호출
+             */
+            async function processVideoIds(searchData, originalPageToken) {
+                const videoItems = searchData.items;
+
+                if (!videoItems || videoItems.length === 0) {
+                    showNoResults(true);
+                    updatePagination(null); // 결과 없으면 페이지네이션도 없음
+                    return;
+                }
+
+                const videoIds = videoItems.map(item => item.id.videoId).join(',');
+                
+                // 페이지네이션 상태 업데이트
+                // '이전' 버튼 클릭이 아닌 경우에만 prev 스택에 추가
+                if (originalPageToken !== pageTokens.prev[pageTokens.prev.length - 1]) {
+                    pageTokens.prev.push(searchData.prevPageToken);
+                }
+                pageTokens.next = searchData.nextPageToken || null;
+                
+                updatePagination(searchData);
+
+                // 2. videos.list API (상세 정보 가져오기)
+                const videosParams = new URLSearchParams({
+                    part: 'snippet,contentDetails,statistics',
+                    id: videoIds,
+                    key: apiKey,
+                });
+                const videosUrl = `${YOUTUBE_API_BASE}/videos?${videosParams.toString()}`;
+
+                const vidResponse = await fetch(videosUrl);
+                const vidData = await vidResponse.json();
+
+                if (!vidResponse.ok) {
+                    throw new Error(vidData.error?.message || vidResponse.statusText);
+                }
+
+                currentResults = vidData.items || [];
+                renderResults(currentResults);
+            }
+
+
+            // --- 렌더링 로직 ---
+
+            /**
+             * 결과 렌더링 (뷰에 따라 분기)
+             */
+            function renderResults(results) {
+                showNoResults(results.length === 0 && !dom.loader.style.display);
+                dom.resultsContainer.innerHTML = ''; // 초기화
+                
+                if (currentView === 'grid') {
+                    renderGridView(results);
+                } else {
+                    renderTableView(results);
+                }
+            }
+
+            /**
+             * 카드 뷰 렌더링
+             */
+            function renderGridView(results) {
+                const grid = document.createElement('div');
+                grid.className = 'results-grid';
+                
+                grid.innerHTML = results.map(item => {
+                    const snippet = item.snippet || {};
+                    const stats = item.statistics || {};
+                    const details = item.contentDetails || {};
+
+                    const videoId = item.id;
+                    const title = escapeHTML(snippet.title);
+                    const url = `https://www.youtube.com/watch?v=${videoId}`;
+                    const thumbUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || 'https://placehold.co/480x270/e0e0e0/757575?text=No+Thumbnail';
+                    const duration = formatDuration(details.duration);
+                    
+                    const channelTitle = escapeHTML(snippet.channelTitle);
+                    const publishedAt = formatDate(snippet.publishedAt);
+                    const viewCount = formatNumber(stats.viewCount);
+                    
+                    const description = escapeHTML(snippet.description);
+                    const isLongDescription = description.length > 160;
+                    const shortDesc = isLongDescription ? description.substring(0, 160) + '...' : description;
+                    
+                    const tags = snippet.tags || [];
+                    const maxTags = 10;
+                    const tagChips = tags.slice(0, maxTags).map(tag => 
+                        `<span class="tag-chip">${escapeHTML(tag)}</span>`
+                    ).join('');
+                    const moreTags = tags.length > maxTags ? `<span class="tag-chip">+${tags.length - maxTags}</span>` : '';
+
+                    return `
+                        <div class="video-card" data-video-id="${videoId}">
+                            <div class="card-thumbnail">
+                                <a href="${url}" target="_blank" rel="noopener noreferrer">
+                                    <img src="${thumbUrl}" alt="${title} 썸네일" loading="lazy">
+                                </a>
+                                <span class="card-duration">${duration}</span>
+                            </div>
+                            <div class="card-content">
+                                <a href="${url}" target="_blank" rel="noopener noreferrer" class="card-title" title="${title}">${title}</a>
+                                <div class="card-meta">
+                                    <span title="${channelTitle}">📺 ${channelTitle}</span>
+                                    <span>🗓️ ${publishedAt}</span>
+                                </div>
+                                <div class="card-stats">
+                                    <span>👀 조회수 ${viewCount}회</span>
+                                </div>
+                                <div class="card-tags">
+                                    ${tagChips}
+                                    ${moreTags}
+                                </div>
+                                <div class="card-description" data-short="${shortDesc}" data-full="${description}">
+                                    ${shortDesc.replace(/\n/g, '<br>')}
+                                </div>
+                                ${isLongDescription ? `
+                                    <button class="description-toggle" aria-expanded="false" aria-controls="desc-${videoId}">
+                                        더보기
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                dom.resultsContainer.appendChild(grid);
+            }
+
+            /**
+             * 테이블 뷰 렌더링
+             */
+            function renderTableView(results) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'results-table-wrapper';
+                
+                const tableHeader = `
+                    <thead>
+                        <tr>
+                            <th>썸네일</th>
+                            <th>제목</th>
+                            <th>채널명</th>
+                            <th>게시일</th>
+                            <th>길이</th>
+                            <th>조회수</th>
+                            <th>좋아요</th>
+                            <th>태그</th>
+                            <th>설명</th>
+                        </tr>
+                    </thead>
+                `;
+                
+                const tableBody = results.map(item => {
+                    const snippet = item.snippet || {};
+                    const stats = item.statistics || {};
+                    const details = item.contentDetails || {};
+
+                    const videoId = item.id;
+                    const title = escapeHTML(snippet.title);
+                    const url = `https://www.youtube.com/watch?v=${videoId}`;
+                    const thumbUrl = snippet.thumbnails?.default?.url || 'https://placehold.co/120x90/e0e0e0/757575?text=Thumb';
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <a href="${url}" target="_blank" rel="noopener noreferrer">
+                                    <img src="${thumbUrl}" alt="${title} 썸네일" class="table-thumbnail" loading="lazy">
+                                </a>
+                            </td>
+                            <td><a href="${url}" target="_blank" rel="noopener noreferrer" class="table-title" title="${title}">${title}</a></td>
+                            <td>${escapeHTML(snippet.channelTitle)}</td>
+                            <td>${formatDate(snippet.publishedAt)}</td>
+                            <td>${formatDuration(details.duration)}</td>
+                            <td>${formatNumber(stats.viewCount)}</td>
+                            <td>${formatNumber(stats.likeCount)}</td>
+                            <td class="table-tags" title="${escapeHTML((snippet.tags || []).join(', '))}">${escapeHTML((snippet.tags || []).join(', '))}</td>
+                            <td class="table-description" title="${escapeHTML(snippet.description)}">${escapeHTML(snippet.description)}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                wrapper.innerHTML = `
+                    <table class="results-table">
+                        ${tableHeader}
+                        <tbody>${tableBody}</tbody>
+                    </table>
+                `;
+                dom.resultsContainer.appendChild(wrapper);
+            }
+
+            /**
+             * 페이지네이션 버튼 업데이트
+             */
+            function updatePagination(searchData) {
+                dom.prevPageBtn.disabled = pageTokens.prev.length <= 1; // 0번 인덱스는 undefined일 수 있으므로 1 기준
+                dom.nextPageBtn.disabled = !pageTokens.next;
+                dom.paginationControls.classList.toggle('hidden', !searchData && currentResults.length === 0);
+            }
+            
+            /**
+             * 뷰 모드 전환
+             * @param {boolean} [forceTable] - 테이블 뷰로 강제
+             */
+            function toggleView(forceTable = false) {
+                const isGrid = currentView === 'grid';
+                if (forceTable) {
+                    currentView = 'table';
+                } else {
+                    currentView = isGrid ? 'table' : 'grid';
+                }
+
+                if (currentView === 'table') {
+                    dom.viewToggleBtn.textContent = '보기: 카드';
+                    dom.viewToggleBtn.classList.remove('btn-success');
+                    dom.viewToggleBtn.classList.add('btn-primary');
+                    document.body.classList.add('view-table'); // (CSS에서 현재 사용 안 함)
+                } else {
+                    dom.viewToggleBtn.textContent = '보기: 테이블';
+                    dom.viewToggleBtn.classList.remove('btn-primary');
+                    dom.viewToggleBtn.classList.add('btn-success');
+                    document.body.classList.remove('view-table');
+                }
+                
+                // 현재 데이터로 뷰 다시 렌더링
+                renderResults(currentResults);
+                saveSettings(); // 뷰 상태 저장
+            }
+
+
+            // --- 내보내기 로직 ---
+
+            function exportCSV() {
+                if (currentResults.length === 0) {
+                    showToast('내보낼 데이터가 없습니다.', 'error');
+                    return;
+                }
+
+                const headers = [
+                    'videoId', 'title', 'description', 'tags', 'channelTitle', 
+                    'publishedAt', 'duration', 'viewCount', 'likeCount', 'url', 'thumbnailUrl'
+                ];
+                
+                const csvRows = [headers.join(',')];
+
+                currentResults.forEach(item => {
+                    const snippet = item.snippet || {};
+                    const stats = item.statistics || {};
+                    const details = item.contentDetails || {};
+
+                    const row = [
+                        item.id,
+                        snippet.title,
+                        snippet.description,
+                        (snippet.tags || []).join('|'), // 태그는 |로 결합
+                        snippet.channelTitle,
+                        snippet.publishedAt,
+                        details.duration,
+                        stats.viewCount,
+                        stats.likeCount,
+                        `https://www.youtube.com/watch?v=${item.id}`,
+                        snippet.thumbnails?.high?.url
+                    ];
+                    
+                    csvRows.push(row.map(escapeCSV).join(','));
+                });
+
+                const csvString = csvRows.join('\n');
+                // UTF-8 BOM 추가 (Excel 호환)
+                const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `Youtube_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+                
+                showToast('CSV 파일이 다운로드됩니다.', 'success');
+            }
+
+            function copyJSON() {
+                if (currentResults.length === 0) {
+                    showToast('복사할 데이터가 없습니다.', 'error');
+                    return;
+                }
+
+                const jsonString = JSON.stringify(currentResults, null, 2);
+                
+                // navigator.clipboard (보안 컨텍스트에서만 작동, file:// 안됨)
+                if (navigator.clipboard && window.isSecureContext) {
+                     navigator.clipboard.writeText(jsonString).then(() => {
+                        showToast('JSON이 클립보드에 복사되었습니다.', 'success');
+                    }, () => {
+                        showToast('클립보드 복사에 실패했습니다.', 'error');
+                    });
+                } else {
+                    // 구형 fallback (iframe 제한 시 동작 안 할 수 있음)
+                    try {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = jsonString;
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        showToast('JSON이 클립보드에 복사되었습니다.', 'success');
+                    } catch (e) {
+                         showToast('클립보드 복사에 실패했습니다. (보안 제한)', 'error');
+                    }
+                }
+            }
+
+
+            // --- API 테스트 ---
+            
+            async function testApiKey() {
+                apiKey = dom.apiKeyInput.value;
+                if (!apiKey) {
+                    showToast('테스트할 API Key를 입력하세요.', 'error');
+                    return;
+                }
+                
+                // i18nLanguages.list (가벼운 쿼터 소모 1)
+                const testUrl = `${YOUTUBE_API_BASE}/i18nLanguages?part=snippet&key=${apiKey}`;
+                
+                showToast('API 키 테스트 중...', 'info');
+
+                try {
+                    const response = await fetch(testUrl);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        showToast('API 키가 유효합니다.', 'success');
+                    } else {
+                        handleApiError(new Error(data.error?.message), data);
+                    }
+                } catch (e) {
+                    handleApiError(e);
+                }
+            }
+
+
+            // --- 이벤트 리스너 바인딩 ---
+
+            // 검색어 입력 (디바운스)
+            const debouncedSearch = debounce(() => handleSearch(null), 300);
+            dom.searchQueryInput.addEventListener('input', debouncedSearch);
+            dom.searchQueryInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    clearTimeout(searchTimeout); // 디바운스 취소
+                    handleSearch(null); // 즉시 실행
+                }
+            });
+
+            // 필터 변경 시 자동 검색
+            dom.sortOrderSelect.addEventListener('change', () => handleSearch(null));
+            dom.resultCountSelect.addEventListener('change', () => handleSearch(null));
+
+            // 기간 칩 선택
+            dom.periodChipContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('chip-btn')) {
+                    // 기존 active 제거
+                    dom.periodChipContainer.querySelector('.active')?.classList.remove('active');
+                    // 클릭한 칩 active
+                    e.target.classList.add('active');
+                    handleSearch(null); // 검색 실행
+                }
+            });
+
+            // API 키 토글
+            dom.apiKeyToggle.addEventListener('click', () => {
+                const isPassword = dom.apiKeyInput.type === 'password';
+                dom.apiKeyInput.type = isPassword ? 'text' : 'password';
+                dom.apiKeyToggle.textContent = isPassword ? '🙈' : '👁️';
+            });
+            
+            // API 키 암호화
+            dom.saveKeyBtn.addEventListener('click', encryptAndStoreKey);
+            dom.loadKeyBtn.addEventListener('click', loadAndDecryptKey);
+
+            // 뷰 토글
+            dom.viewToggleBtn.addEventListener('click', () => toggleView());
+            
+            // 리셋
+            dom.resetBtn.addEventListener('click', resetSettings);
+            
+            // 내보내기
+            dom.exportCsvBtn.addEventListener('click', exportCSV);
+            dom.copyJsonBtn.addEventListener('click', copyJSON);
+            
+            // API 테스트
+            dom.apiTestBtn.addEventListener('click', testApiKey);
+
+            // 경고 배너 닫기
+            dom.closeBannerBtn.addEventListener('click', () => {
+                dom.warningBanner.style.display = 'none';
+                // 배너가 닫히면 body 상단 패딩 조절
+                updateBodyPadding();
+            });
+
+            // 페이지네이션
+            dom.prevPageBtn.addEventListener('click', () => {
+                // 현재 토큰을 스택에서 제거
+                pageTokens.prev.pop(); 
+                // 그 이전 토큰을 사용
+                const prevToken = pageTokens.prev.pop(); 
+                handleSearch(prevToken);
+            });
+            dom.nextPageBtn.addEventListener('click', () => {
+                handleSearch(pageTokens.next);
+            });
+
+            // "더보기/접기" (이벤트 위임)
+            dom.resultsContainer.addEventListener('click', (e) => {
+                const target = e.target;
+                if (!target.classList.contains('description-toggle')) return;
+                
+                e.preventDefault();
+                
+                const descriptionElem = target.previousElementSibling;
+                const card = target.closest('.video-card');
+                const videoId = card.dataset.videoId;
+                
+                const isExpanded = target.getAttribute('aria-expanded') === 'true';
+                
+                if (isExpanded) {
+                    descriptionElem.innerHTML = descriptionElem.dataset.short.replace(/\n/g, '<br>');
+                    target.textContent = '더보기';
+                    target.setAttribute('aria-expanded', 'false');
+                    target.setAttribute('aria-controls', `desc-${videoId}`);
+                } else {
+                    descriptionElem.innerHTML = descriptionElem.dataset.full.replace(/\n/g, '<br>');
+                    target.textContent = '접기';
+                    target.setAttribute('aria-expanded', 'true');
+                    target.setAttribute('aria-controls', `desc-${videoId}`);
+                }
+            });
+            
+            // (키보드 접근성) 스페이스/엔터로 더보기 토글
+            dom.resultsContainer.addEventListener('keydown', (e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('description-toggle')) {
+                    e.preventDefault();
+                    e.target.click();
+                }
+            });
+            
+
+            // --- 초기화 로직 ---
+
+            /**
+             * 상단 바 높이에 맞춰 body 패딩 조절
+             */
+            function updateBodyPadding() {
+                const searchBarHeight = dom.searchBar.offsetHeight;
+                const bannerHeight = dom.warningBanner.offsetHeight;
+                const totalPadding = (dom.warningBanner.style.display === 'none' ? 0 : bannerHeight) + searchBarHeight;
+                
+                document.body.style.paddingTop = `${totalPadding + 10}px`;
+                dom.warningBanner.style.top = `${searchBarHeight}px`;
+            }
+
+            // 초기 로드
+            loadSettings();
+            updateBodyPadding();
+            updatePagination(null); // 초기 페이지네이션 숨김
+
+            // 창 크기 변경 시 패딩 재조정
+            window.addEventListener('resize', debounce(updateBodyPadding, 100));
+
+            // file:// 경고
+            if (window.location.protocol === 'file:') {
+                console.warn(
+                    "file:// 프로토콜로 실행 중입니다. API 요청이 Referrer Policy " +
+                    "(e.g., 'strict-origin-when-cross-origin')로 인해 실패할 수 있습니다. " +
+                    "로컬 웹 서버(예: VSCode Live Server) 사용을 강력히 권장합니다."
+                );
+            }
+
+        }); // DOMContentLoaded End
+    </script>
+
+</body>
+</html>
